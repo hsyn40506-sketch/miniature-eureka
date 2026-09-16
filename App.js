@@ -7,12 +7,12 @@ import { getFirestore, collection, getDocs, addDoc } from "firebase/firestore";
 
 // إعدادات الاتصال بقاعدة البيانات السحابية الخاصة بك
 const firebaseConfig = {
-  apiKey: "AIzaSyApSganbtDR4zrVezw7...",
+  apiKey: "نسخ_مفتاح_الـ_API_الكامل_من_الفايربيز",
   authDomain: "gmal-1ed42.firebaseapp.com",
   projectId: "gmal-1ed42",
   storageBucket: "gmal-1ed42.appspot.com",
   messagingSenderId: "561059921384",
-  appId: "1:561059921384:web:55fc6..."
+  appId: "نسخ_معرف_التطبيق_الكامل_من_الفايربيز"
 };
 
 // تهيئة الفايربيز
@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 16, color: "#718093", marginBottom: 20 },
   bigIcon: { fontSize: 40, textAlign: "center", marginVertical: 10 },
   title: { fontSize: 24, fontWeight: "bold", color: "#2f3640", marginBottom: 15, textAlign: "center" },
-  description: { fontSize: 14, color: "#718093", textAlign: "center",marginBottom: 20 },
+  description: { fontSize: 14, color: "#718093", textAlign: "center", marginBottom: 20 },
   button: { backgroundColor: "#0984e3", padding: 15, borderRadius: 10, alignItems: "center", marginTop: 15, width: "100%" },
   buttonText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
   roleCard: { backgroundColor: "#fff", padding: 20, borderRadius: 12, marginBottom: 15, elevation: 3 },
