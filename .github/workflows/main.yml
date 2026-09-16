@@ -39,6 +39,11 @@ jobs:
           mkdir -p android/app/src/main/res/values
           echo '<?xml version="1.0" encoding="utf-8"?><resources><color name="splashscreen_background">#ffffff</color><color name="colorPrimary">#0984e3</color></resources>' > android/app/src/main/res/values/colors.xml
 
+      - name: Bundle JavaScript for Standalone App
+        run: |
+          mkdir -p android/app/src/main/assets
+          npx react-native bundle --platform android --dev false --entry-file node_modules/expo/AppEntry.js --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res
+
       - name: Grant execute permission for gradlew
         run: |
           cd android
