@@ -5,14 +5,14 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, SafeAr
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, getDocs, addDoc } from "firebase/firestore";
 
-// إعدادات الاتصال بقاعدة البيانات السحابية (Firebase Config)
+// إعدادات الاتصال بقاعدة البيانات السحابية الخاصة بك
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyApSganbtDR4zrVezw7...",
+  authDomain: "gmal-1ed42.firebaseapp.com",
+  projectId: "gmal-1ed42",
+  storageBucket: "gmal-1ed42.appspot.com",
+  messagingSenderId: "561059921384",
+  appId: "1:561059921384:web:55fc6..."
 };
 
 // تهيئة الفايربيز
@@ -62,7 +62,7 @@ export default function App() {
       const newJobData = {
         title: newTitle,
         company: newCompany,
-        city: newCity || "الحلة - بابل",
+        city: newCity || "الحلة - المحاويل",
         salary: newSalary || "حسب الاتفاق",
         type: "دوام كامل",
         createdAt: new Date().toISOString()
@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 16, color: "#718093", marginBottom: 20 },
   bigIcon: { fontSize: 40, textAlign: "center", marginVertical: 10 },
   title: { fontSize: 24, fontWeight: "bold", color: "#2f3640", marginBottom: 15, textAlign: "center" },
-  description: { fontSize: 14, color: "#718093", textAlign: "center", marginBottom: 20 },
+  description: { fontSize: 14, color: "#718093", textAlign: "center",marginBottom: 20 },
   button: { backgroundColor: "#0984e3", padding: 15, borderRadius: 10, alignItems: "center", marginTop: 15, width: "100%" },
   buttonText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
   roleCard: { backgroundColor: "#fff", padding: 20, borderRadius: 12, marginBottom: 15, elevation: 3 },
