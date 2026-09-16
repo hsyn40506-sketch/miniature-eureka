@@ -1,0 +1,1520 @@
+IraqJobs V2 - ALL PROJECT FILES
+This document contains every file from IraqJobs_V2_Full.zip.
+Total files: 56
+================================================================================
+
+================================================================================
+===== FILE: .github/workflows/ci.yml =====
+================================================================================
+
+name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm install
+      - run: npx prisma generate
+      - run: npm run typecheck
+      - run: npm run build
+  mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm install
+      - run: npm run typecheck
+
+================================================================================
+===== FILE: .gitignore =====
+================================================================================
+
+node_modules/
+.env
+.env.*
+!.env.example
+.expo/
+dist/
+coverage/
+*.log
+.DS_Store
+
+================================================================================
+===== FILE: README.md =====
+================================================================================
+
+# IraqJobs V2 Full 🇮🇶
+
+منصة وظائف عراقية متعددة الأدوار مبنية كـ Monorepo:
+- `mobile`: تطبيق Expo + React Native + TypeScript
+- `backend`: API + PostgreSQL + Prisma + Socket.IO
+- `docs`: توثيق التشغيل والبنية
+- `.github`: GitHub Actions
+
+## المزايا
+- الباحث عن عمل وصاحب العمل والإدارة
+- تسجيل/دخول JWT
+- صلاحيات ديناميكية Role/Permission
+- وظائف + بحث + فلترة حسب المحافظة
+- تقديم على الوظائف ومتابعة الحالة
+- شركات
+- ملف شخصي وسيرة ذاتية
+- مفضلة
+- محادثات مرتبطة بالحساب
+- Socket.IO للرسائل الفورية
+- إشعارات داخلية
+- بلاغات
+- إدارة المحافظات والأقضية
+- لوحة إدارة API
+- حماية Helmet + CORS + rate limit + Zod + bcrypt
+- PostgreSQL + Prisma
+- Docker Compose
+- GitHub CI
+
+## التشغيل المحلي
+
+### Backend
+```bash
+cd backend
+cp .env.example .env
+npm install
+npx prisma generate
+npx prisma migrate dev --name init
+npm run seed
+npm run dev
+```
+
+### Mobile
+```bash
+cd mobile
+npm install
+npx expo start
+```
+
+> على جهاز Android حقيقي، لا تستخدم `localhost` للـAPI؛ ضع IP الكمبيوتر في `mobile/src/config/env.ts`.
+
+## حسابات التجربة بعد seed
+- admin@iraqjobs.local / Admin123!
+- employer@iraqjobs.local / Employer123!
+- user@iraqjobs.local / User123!
+
+غيّرها فوراً في أي بيئة حقيقية.
+
+## ملاحظة
+هذه حزمة V2 متكاملة كأساس قابل للتشغيل والتطوير، لكنها ليست ضماناً أن كل بيئة تشغيل خارجية ستعمل بلا اختلافات. نفّذ `npm install` وPrisma migrations واختبارات CI قبل النشر.
+
+================================================================================
+===== FILE: backend/.env.example =====
+================================================================================
+
+PORT=4000
+DATABASE_URL="postgresql://iraqjobs:iraqjobs@localhost:5432/iraqjobs?schema=public"
+JWT_SECRET="REPLACE_WITH_A_RANDOM_SECRET_AT_LEAST_32_CHARACTERS"
+JWT_EXPIRES_IN="7d"
+CORS_ORIGIN="*"
+
+================================================================================
+===== FILE: backend/package.json =====
+================================================================================
+
+{
+  "name": "iraqjobs-api",
+  "version": "2.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "seed": "tsx prisma/seed.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.14.0",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.0.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "socket.io": "^4.8.1",
+    "zod": "^4.0.17"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/morgan": "^1.9.10",
+    "@types/node": "^22.17.0",
+    "prisma": "^6.14.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5.9.2"
+  }
+}
+
+================================================================================
+===== FILE: backend/prisma/schema.prisma =====
+================================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserType {
+  SEEKER
+  EMPLOYER
+  ADMIN
+}
+
+enum JobType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  REMOTE
+  FREELANCE
+}
+
+enum ApplicationStatus {
+  PENDING
+  REVIEWING
+  ACCEPTED
+  REJECTED
+}
+
+enum NotificationType {
+  APPLICATION
+  MESSAGE
+  JOB
+  SYSTEM
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  passwordHash String
+  name         String
+  phone        String?
+  type         UserType     @default(SEEKER)
+  avatarUrl    String?
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  profile      Profile?
+  company      Company?
+  jobs         Job[]        @relation("EmployerJobs")
+  applications Application[]
+  roles        UserRole[]
+  sentMessages Message[]    @relation("SentMessages")
+  members      ConversationMember[]
+  notifications Notification[]
+  favorites    Favorite[]
+  reportsMade  Report[]     @relation("ReportsMade")
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  name        String           @unique
+  users       UserRole[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  key         String           @unique
+  roles       RolePermission[]
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  @@id([userId, roleId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  @@id([roleId, permissionId])
+}
+
+model Profile {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  bio         String?
+  skills      String[]
+  experience  Int       @default(0)
+  cvUrl       String?
+  provinceId  String?
+  districtId  String?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  province    Province? @relation(fields: [provinceId], references: [id])
+  district    District? @relation(fields: [districtId], references: [id])
+}
+
+model Company {
+  id          String   @id @default(cuid())
+  ownerId     String   @unique
+  name        String
+  description String?
+  phone       String?
+  website     String?
+  logoUrl     String?
+  provinceId  String?
+  districtId  String?
+  owner       User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  province    Province? @relation(fields: [provinceId], references: [id])
+  district    District? @relation(fields: [districtId], references: [id])
+  jobs        Job[]
+}
+
+model Province {
+  id        String     @id @default(cuid())
+  nameAr    String     @unique
+  districts District[]
+  profiles  Profile[]
+  companies Company[]
+  jobs      Job[]
+}
+
+model District {
+  id         String     @id @default(cuid())
+  nameAr     String
+  provinceId String
+  province   Province @relation(fields: [provinceId], references: [id], onDelete: Cascade)
+  profiles   Profile[]
+  companies  Company[]
+  jobs       Job[]
+  @@unique([provinceId, nameAr])
+}
+
+model Job {
+  id          String        @id @default(cuid())
+  title       String
+  description String
+  salaryMin   Int?
+  salaryMax   Int?
+  currency    String        @default("IQD")
+  type        JobType
+  companyName String
+  address     String?
+  provinceId  String
+  districtId  String?
+  employerId  String
+  companyId   String?
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  province    Province      @relation(fields: [provinceId], references: [id])
+  district    District?     @relation(fields: [districtId], references: [id])
+  employer    User          @relation("EmployerJobs", fields: [employerId], references: [id])
+  company     Company?      @relation(fields: [companyId], references: [id])
+  applications Application[]
+  favorites   Favorite[]
+  reports     Report[]
+  @@index([provinceId, districtId])
+  @@index([createdAt])
+  @@index([title])
+}
+
+model Application {
+  id        String            @id @default(cuid())
+  jobId     String
+  seekerId  String
+  status    ApplicationStatus @default(PENDING)
+  note      String?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  job       Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  seeker    User              @relation(fields: [seekerId], references: [id], onDelete: Cascade)
+  @@unique([jobId, seekerId])
+  @@index([seekerId, status])
+}
+
+model Favorite {
+  userId    String
+  jobId     String
+  createdAt DateTime @default(now())
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job       Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  @@id([userId, jobId])
+}
+
+model Conversation {
+  id        String                @id @default(cuid())
+  jobId     String?
+  createdAt DateTime              @default(now())
+  job       Job?                 @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  members   ConversationMember[]
+  messages  Message[]
+}
+
+model ConversationMember {
+  conversationId String
+  userId         String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user          User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([conversationId, userId])
+}
+
+model Message {
+  id             String @id @default(cuid())
+  conversationId String
+  senderId       String
+  body           String
+  createdAt      DateTime @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User @relation("SentMessages", fields: [senderId], references: [id])
+  @@index([conversationId, createdAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, readAt])
+}
+
+model Report {
+  id          String   @id @default(cuid())
+  reporterId  String
+  jobId       String?
+  reason      String
+  details     String?
+  resolved    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  reporter    User @relation("ReportsMade", fields: [reporterId], references: [id], onDelete: Cascade)
+  job         Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
+}
+
+================================================================================
+===== FILE: backend/prisma/seed.ts =====
+================================================================================
+
+import { PrismaClient, UserType } from "@prisma/client";
+import bcrypt from "bcryptjs";
+
+const prisma = new PrismaClient();
+
+const provinces = [
+  "بغداد","البصرة","نينوى","أربيل","النجف","كربلاء","بابل","ذي قار",
+  "ميسان","واسط","ديالى","الأنبار","صلاح الدين","كركوك","الديوانية",
+  "المثنى","دهوك","السليمانية","حلبجة"
+];
+
+const permissionKeys = [
+  "jobs.read","jobs.create","jobs.update","jobs.delete",
+  "applications.read","applications.update",
+  "users.read","users.update","users.delete",
+  "chat.use","notifications.read","reports.create","reports.manage",
+  "roles.manage","companies.create","companies.update"
+];
+
+async function main() {
+  for (const nameAr of provinces) {
+    await prisma.province.upsert({where:{nameAr},update:{},create:{nameAr}});
+  }
+
+  for (const key of permissionKeys) {
+    await prisma.permission.upsert({where:{key},update:{},create:{key}});
+  }
+
+  const roleNames = ["ADMIN","EMPLOYER","SEEKER"];
+  const roles: Record<string,string> = {};
+  for (const name of roleNames) {
+    const role = await prisma.role.upsert({where:{name},update:{},create:{name}});
+    roles[name] = role.id;
+  }
+
+  const adminKeys = permissionKeys;
+  const employerKeys = ["jobs.read","jobs.create","jobs.update","applications.read","applications.update","chat.use","notifications.read","reports.create","companies.create","companies.update"];
+  const seekerKeys = ["jobs.read","applications.read","chat.use","notifications.read","reports.create"];
+
+  for (const [roleName, keys] of [["ADMIN",adminKeys],["EMPLOYER",employerKeys],["SEEKER",seekerKeys]] as const) {
+    for (const key of keys) {
+      const permission = await prisma.permission.findUniqueOrThrow({where:{key}});
+      await prisma.rolePermission.upsert({
+        where:{roleId_permissionId:{roleId:roles[roleName],permissionId:permission.id}},
+        update:{},create:{roleId:roles[roleName],permissionId:permission.id}
+      });
+    }
+  }
+
+  const accounts = [
+    {email:"admin@iraqjobs.local",name:"مدير النظام",type:UserType.ADMIN,password:"Admin123!",role:"ADMIN"},
+    {email:"employer@iraqjobs.local",name:"صاحب عمل تجريبي",type:UserType.EMPLOYER,password:"Employer123!",role:"EMPLOYER"},
+    {email:"user@iraqjobs.local",name:"باحث عن عمل",type:UserType.SEEKER,password:"User123!",role:"SEEKER"}
+  ];
+
+  const created:any = {};
+  for (const a of accounts) {
+    const user = await prisma.user.upsert({
+      where:{email:a.email},update:{name:a.name,type:a.type},
+      create:{email:a.email,name:a.name,type:a.type,passwordHash:await bcrypt.hash(a.password,12)}
+    });
+    created[a.role] = user;
+    await prisma.userRole.upsert({
+      where:{userId_roleId:{userId:user.id,roleId:roles[a.role]}},
+      update:{},create:{userId:user.id,roleId:roles[a.role]}
+    });
+  }
+
+  const baghdad = await prisma.province.findUniqueOrThrow({where:{nameAr:"بغداد"}});
+  const company = await prisma.company.upsert({
+    where:{ownerId:created.EMPLOYER.id},update:{},
+    create:{ownerId:created.EMPLOYER.id,name:"شركة العراق للتقنية",description:"شركة تجريبية لمنصة وظائف العراق",provinceId:baghdad.id}
+  });
+
+  await prisma.job.upsert({
+    where:{id:"demo-job-1"},update:{},
+    create:{
+      id:"demo-job-1",title:"موظف مبيعات",description:"فرصة عمل تجريبية داخل بغداد. يشترط التواصل الجيد والالتزام.",
+      salaryMin:500000,salaryMax:800000,type:"FULL_TIME",companyName:company.name,
+      provinceId:baghdad.id,employerId:created.EMPLOYER.id,companyId:company.id
+    }
+  });
+
+  console.log("Seed complete.");
+}
+
+main().catch(console.error).finally(()=>prisma.$disconnect());
+
+================================================================================
+===== FILE: backend/src/auth.ts =====
+================================================================================
+
+import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
+import { env } from "./config/env";
+
+export type TokenPayload = {sub:string; type:string};
+
+export function signToken(payload:TokenPayload) {
+  return jwt.sign(payload, env.JWT_SECRET, {expiresIn:env.JWT_EXPIRES_IN as jwt.SignOptions["expiresIn"]});
+}
+export function verifyToken(token:string) {
+  return jwt.verify(token, env.JWT_SECRET) as TokenPayload;
+}
+export const hashPassword=(value:string)=>bcrypt.hash(value,12);
+export const comparePassword=(value:string,hash:string)=>bcrypt.compare(value,hash);
+
+================================================================================
+===== FILE: backend/src/config/env.ts =====
+================================================================================
+
+import "dotenv/config";
+import { z } from "zod";
+
+const schema = z.object({
+  PORT: z.coerce.number().default(4000),
+  DATABASE_URL: z.string().min(1),
+  JWT_SECRET: z.string().min(32),
+  JWT_EXPIRES_IN: z.string().default("7d"),
+  CORS_ORIGIN: z.string().default("*")
+});
+
+export const env = schema.parse(process.env);
+
+================================================================================
+===== FILE: backend/src/db.ts =====
+================================================================================
+
+import { PrismaClient } from "@prisma/client";
+export const prisma = new PrismaClient();
+
+================================================================================
+===== FILE: backend/src/error.ts =====
+================================================================================
+
+import {Request,Response,NextFunction} from "express";
+export function errorHandler(err:any,_req:Request,res:Response,_next:NextFunction) {
+  console.error(err);
+  if(err?.name==="ZodError") return res.status(400).json({message:"بيانات غير صحيحة",details:err.issues});
+  return res.status(500).json({message:"حدث خطأ داخلي"});
+}
+
+================================================================================
+===== FILE: backend/src/middleware.ts =====
+================================================================================
+
+import {Request,Response,NextFunction} from "express";
+import {verifyToken} from "./auth";
+import {prisma} from "./db";
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {id:string; type:string; permissions:Set<string>};
+    }
+  }
+}
+
+export async function requireAuth(req:Request,res:Response,next:NextFunction) {
+  try {
+    const header=req.headers.authorization;
+    if(!header?.startsWith("Bearer ")) return res.status(401).json({message:"غير مصرح"});
+    const payload=verifyToken(header.slice(7));
+    const user=await prisma.user.findUnique({
+      where:{id:payload.sub},
+      include:{roles:{include:{role:{include:{permissions:{include:{permission:true}}}}}}}
+    });
+    if(!user||!user.isActive) return res.status(401).json({message:"الحساب غير فعال"});
+    const permissions=new Set(user.roles.flatMap(r=>r.role.permissions.map(x=>x.permission.key)));
+    req.user={id:user.id,type:user.type,permissions};
+    next();
+  } catch { res.status(401).json({message:"رمز الدخول غير صالح"}); }
+}
+
+export function permission(key:string) {
+  return (req:Request,res:Response,next:NextFunction)=>{
+    if(!req.user?.permissions.has(key)) return res.status(403).json({message:"لا تملك الصلاحية"});
+    next();
+  };
+}
+
+export function adminOnly(req:Request,res:Response,next:NextFunction) {
+  if(req.user?.type!=="ADMIN") return res.status(403).json({message:"للمدير فقط"});
+  next();
+}
+
+================================================================================
+===== FILE: backend/src/routes/admin.ts =====
+================================================================================
+
+import {Router} from "express";
+import {z} from "zod";
+import {prisma} from "../db";
+import {adminOnly,requireAuth} from "../middleware";
+const router=Router();
+
+router.use(requireAuth,adminOnly);
+
+router.get("/stats",async(_req,res)=>{
+  const [users,jobs,applications,companies,reports]=await Promise.all([
+    prisma.user.count(),prisma.job.count({where:{isActive:true}}),prisma.application.count(),
+    prisma.company.count(),prisma.report.count({where:{resolved:false}})
+  ]);
+  res.json({users,jobs,applications,companies,reports});
+});
+
+router.get("/users",async(req,res)=>{
+  const take=Math.min(Number(req.query.take)||50,100);
+  res.json(await prisma.user.findMany({select:{id:true,name:true,email:true,type:true,isActive:true,createdAt:true},orderBy:{createdAt:"desc"},take}));
+});
+
+router.patch("/users/:id",async(req,res)=>{
+  const {isActive}=z.object({isActive:z.boolean()}).parse(req.body);
+  res.json(await prisma.user.update({where:{id:req.params.id},data:{isActive}}));
+});
+
+router.get("/roles",async(_req,res)=>res.json(await prisma.role.findMany({include:{permissions:{include:{permission:true}}},orderBy:{name:"asc"}})));
+
+export default router;
+
+================================================================================
+===== FILE: backend/src/routes/applications.ts =====
+================================================================================
+
+import {Router} from "express";
+import {z} from "zod";
+import {prisma} from "../db";
+import {permission,requireAuth} from "../middleware";
+
+const router=Router();
+
+router.get("/mine",requireAuth,permission("applications.read"),async(req,res)=>{
+  res.json(await prisma.application.findMany({
+    where:{seekerId:req.user!.id},include:{job:{include:{province:true,district:true,company:true}}},
+    orderBy:{createdAt:"desc"}
+  }));
+});
+
+router.get("/job/:jobId",requireAuth,permission("applications.read"),async(req,res)=>{
+  const job=await prisma.job.findUnique({where:{id:req.params.jobId}});
+  if(!job)return res.status(404).json({message:"الوظيفة غير موجودة"});
+  if(req.user!.type!=="ADMIN"&&job.employerId!==req.user!.id)return res.status(403).json({message:"غير مسموح"});
+  res.json(await prisma.application.findMany({where:{jobId:job.id},include:{seeker:{include:{profile:true}}},orderBy:{createdAt:"desc"}}));
+});
+
+router.post("/:jobId",requireAuth,permission("applications.read"),async(req,res)=>{
+  if(req.user!.type!=="SEEKER")return res.status(403).json({message:"التقديم للباحث عن عمل"});
+  const job=await prisma.job.findUnique({where:{id:req.params.jobId}});
+  if(!job||!job.isActive)return res.status(404).json({message:"الوظيفة غير متاحة"});
+  const note=z.object({note:z.string().max(1000).optional()}).parse(req.body).note;
+  try{
+    const app=await prisma.application.create({data:{jobId:job.id,seekerId:req.user!.id,note}});
+    await prisma.notification.create({data:{userId:job.employerId,type:"APPLICATION",title:"طلب تقديم جديد",body:`تم استلام طلب جديد على ${job.title}`}});
+    res.status(201).json(app);
+  }catch{res.status(409).json({message:"سبق وقدمت على هذه الوظيفة"});}
+});
+
+router.patch("/:id/status",requireAuth,permission("applications.update"),async(req,res)=>{
+  const {status}=z.object({status:z.enum(["PENDING","REVIEWING","ACCEPTED","REJECTED"])}).parse(req.body);
+  const app=await prisma.application.findUnique({where:{id:req.params.id},include:{job:true}});
+  if(!app)return res.status(404).json({message:"الطلب غير موجود"});
+  if(req.user!.type!=="ADMIN"&&app.job.employerId!==req.user!.id)return res.status(403).json({message:"غير مسموح"});
+  const updated=await prisma.application.update({where:{id:app.id},data:{status}});
+  await prisma.notification.create({data:{userId:app.seekerId,type:"APPLICATION",title:"تحديث طلب التقديم",body:`تم تحديث حالة طلبك إلى ${status}`}});
+  res.json(updated);
+});
+
+export default router;
+
+================================================================================
+===== FILE: backend/src/routes/auth.ts =====
+================================================================================
+
+import {Router} from "express";
+import {z} from "zod";
+import {prisma} from "../db";
+import {comparePassword,hashPassword,signToken} from "../auth";
+import {requireAuth} from "../middleware";
+
+const router=Router();
+
+router.post("/register",async(req,res)=>{
+  const data=z.object({
+    email:z.string().email(),password:z.string().min(8),name:z.string().min(2),
+    phone:z.string().max(30).optional(),type:z.enum(["SEEKER","EMPLOYER"]).default("SEEKER")
+  }).parse(req.body);
+  if(await prisma.user.findUnique({where:{email:data.email}})) return res.status(409).json({message:"البريد مستخدم"});
+  const user=await prisma.user.create({data:{
+    email:data.email,name:data.name,phone:data.phone,type:data.type,passwordHash:await hashPassword(data.password)
+  }});
+  const role=await prisma.role.findUnique({where:{name:data.type}});
+  if(role) await prisma.userRole.create({data:{userId:user.id,roleId:role.id}});
+  res.status(201).json({token:signToken({sub:user.id,type:user.type}),user:{id:user.id,name:user.name,email:user.email,type:user.type}});
+});
+
+router.post("/login",async(req,res)=>{
+  const data=z.object({email:z.string().email(),password:z.string().min(1)}).parse(req.body);
+  const user=await prisma.user.findUnique({where:{email:data.email}});
+  if(!user||!(await comparePassword(data.password,user.passwordHash))) return res.status(401).json({message:"بيانات الدخول غير صحيحة"});
+  res.json({token:signToken({sub:user.id,type:user.type}),user:{id:user.id,name:user.name,email:user.email,phone:user.phone,type:user.type}});
+});
+
+router.get("/me",requireAuth,async(req,res)=>{
+  const user=await prisma.user.findUnique({where:{id:req.user!.id},include:{profile:true,company:true}});
+  res.json(user);
+});
+
+export default router;
+
+================================================================================
+===== FILE: backend/src/routes/chat.ts =====
+================================================================================
+
+import {Router} from "express";
+import {z} from "zod";
+import {prisma} from "../db";
+import {permission,requireAuth} from "../middleware";
+const router=Router();
+
+router.get("/conversations",requireAuth,permission("chat.use"),async(req,res)=>{
+  const rows=await prisma.conversationMember.findMany({
+    where:{userId:req.user!.id},
+    include:{conversation:{include:{job:true,members:{include:{user:{select:{id:true,name:true}}}},messages:{orderBy:{createdAt:"desc"},take:1}}}}
+  });
+  res.json(rows.map(x=>x.conversation));
+});
+
+router.post("/conversations",requireAuth,permission("chat.use"),async(req,res)=>{
+  const {otherUserId,jobId}=z.object({otherUserId:z.string(),jobId:z.string().optional()}).parse(req.body);
+  if(otherUserId===req.user!.id)return res.status(400).json({message:"لا يمكن إنشاء محادثة مع نفسك"});
+  const other=await prisma.user.findUnique({where:{id:otherUserId}});
+  if(!other)return res.status(404).json({message:"المستخدم غير موجود"});
+  const conversation=await prisma.conversation.create({data:{
+    jobId,members:{create:[{userId:req.user!.id},{userId:otherUserId}]}
+  }});
+  res.status(201).json(conversation);
+});
+
+router.get("/conversations/:id/messages",requireAuth,permission("chat.use"),async(req,res)=>{
+  const member=await prisma.conversationMember.findUnique({where:{conversationId_userId:{conversationId:req.params.id,userId:req.user!.id}}});
+  if(!member)return res.status(403).json({message:"غير مسموح"});
+  res.json(await prisma.message.findMany({where:{conversationId:req.params.id},include:{sender:{select:{id:true,name:true}}},orderBy:{createdAt:"asc"},take:300}));
+});
+
+router.post("/conversations/:id/messages",requireAuth,permission("chat.use"),async(req,res)=>{
+  const {body}=z.object({body:z.string().min(1).max(5000)}).parse(req.body);
+  const member=await prisma.conversationMember.findUnique({where:{conversationId_userId:{conversationId:req.params.id,userId:req.user!.id}}});
+  if(!member)return res.status(403).json({message:"غير مسموح"});
+  const msg=await prisma.message.create({data:{conversationId:req.params.id,senderId:req.user!.id,body:body.trim()}});
+  res.status(201).json(msg);
+});
+export default router;
+
+================================================================================
+===== FILE: backend/src/routes/companies.ts =====
+================================================================================
+
+import {Router} from "express";
+import {z} from "zod";
+import {prisma} from "../db";
+import {permission,requireAuth} from "../middleware";
+const router=Router();
+
+router.get("/",async(_req,res)=>res.json(await prisma.company.findMany({include:{province:true,district:true},orderBy:{name:"asc"},take:100})));
+router.get("/mine",requireAuth,async(req,res)=>res.json(await prisma.company.findUnique({where:{ownerId:req.user!.id},include:{jobs:true}})));
+
+router.post("/",requireAuth,permission("companies.create"),async(req,res)=>{
+  const data=z.object({name:z.string().min(2).max(150),description:z.string().max(3000).optional(),phone:z.string().max(30).optional(),website:z.string().url().optional(),provinceId:z.string().optional(),districtId:z.string().optional()}).parse(req.body);
+  res.status(201).json(await prisma.company.upsert({where:{ownerId:req.user!.id},update:data,create:{...data,ownerId:req.user!.id}}));
+});
+
+export default router;
+
+================================================================================
+===== FILE: backend/src/routes/favorites.ts =====
+================================================================================
+
+import {Router} from "express";
+import {prisma} from "../db";
+import {requireAuth} from "../middleware";
+const router=Router();
+
+router.get("/",requireAuth,async(req,res)=>res.json(await prisma.favorite.findMany({where:{userId:req.user!.id},include:{job:{include:{province:true,district:true}}},orderBy:{createdAt:"desc"}})));
+
+router.post("/:jobId",requireAuth,async(req,res)=>{
+  const row=await prisma.favorite.upsert({where:{userId_jobId:{userId:req.user!.id,jobId:req.params.jobId}},update:{},create:{userId:req.user!.id,jobId:req.params.jobId}});
+  res.status(201).json(row);
+});
+
+router.delete("/:jobId",requireAuth,async(req,res)=>{
+  await prisma.favorite.delete({where:{userId_jobId:{userId:req.user!.id,jobId:req.params.jobId}}}).catch(()=>{});
+  res.status(204).send();
+});
+export default router;
+
+================================================================================
+===== FILE: backend/src/routes/jobs.ts =====
+================================================================================
+
+import {Router} from "express";
+import {z} from "zod";
+import {prisma} from "../db";
+import {permission,requireAuth} from "../middleware";
+
+const router=Router();
+const createSchema=z.object({
+  title:z.string().min(2).max(150),description:z.string().min(10),
+  salaryMin:z.number().int().nonnegative().optional(),salaryMax:z.number().int().nonnegative().optional(),
+  type:z.enum(["FULL_TIME","PART_TIME","CONTRACT","REMOTE","FREELANCE"]),
+  companyName:z.string().min(2),address:z.string().max(300).optional(),
+  provinceId:z.string(),districtId:z.string().optional(),companyId:z.string().optional()
+});
+
+router.get("/",async(req,res)=>{
+  const q=typeof req.query.q==="string"?req.query.q:undefined;
+  const provinceId=typeof req.query.provinceId==="string"?req.query.provinceId:undefined;
+  const type=typeof req.query.type==="string"?req.query.type:undefined;
+  const jobs=await prisma.job.findMany({
+    where:{isActive:true,...(provinceId?{provinceId}:{}),...(type?{type:type as any}:{}),
+      ...(q?{OR:[{title:{contains:q,mode:"insensitive"}},{description:{contains:q,mode:"insensitive"}},{companyName:{contains:q,mode:"insensitive"}}]}:{})},
+    include:{province:true,district:true,company:true},orderBy:{createdAt:"desc"},take:100
+  });
+  res.json(jobs);
+});
+
+router.get("/:id",async(req,res)=>{
+  const job=await prisma.job.findUnique({where:{id:req.params.id},include:{province:true,district:true,company:true,employer:{select:{id:true,name:true}}}});
+  if(!job)return res.status(404).json({message:"الوظيفة غير موجودة"});
+  res.json(job);
+});
+
+router.post("/",requireAuth,permission("jobs.create"),async(req,res)=>{
+  const data=createSchema.parse(req.body);
+  const job=await prisma.job.create({data:{...data,employerId:req.user!.id}});
+  res.status(201).json(job);
+});
+
+router.patch("/:id",requireAuth,permission("jobs.update"),async(req,res)=>{
+  const data=createSchema.partial().parse(req.body);
+  const job=await prisma.job.findUnique({where:{id:req.params.id}});
+  if(!job)return res.status(404).json({message:"الوظيفة غير موجودة"});
+  if(req.user!.type!=="ADMIN"&&job.employerId!==req.user!.id)return res.status(403).json({message:"غير مسموح"});
+  res.json(await prisma.job.update({where:{id:job.id},data}));
+});
+
+router.delete("/:id",requireAuth,permission("jobs.delete"),async(req,res)=>{
+  const job=await prisma.job.findUnique({where:{id:req.params.id}});
+  if(!job)return res.status(404).json({message:"غير موجودة"});
+  if(req.user!.type!=="ADMIN"&&job.employerId!==req.user!.id)return res.status(403).json({message:"غير مسموح"});
+  await prisma.job.update({where:{id:job.id},data:{isActive:false}});
+  res.status(204).send();
+});
+
+export default router;
+
+================================================================================
+===== FILE: backend/src/routes/locations.ts =====
+================================================================================
+
+import {Router} from "express";
+import {prisma} from "../db";
+const router=Router();
+
+router.get("/provinces",async(_req,res)=>res.json(await prisma.province.findMany({orderBy:{nameAr:"asc"}})));
+router.get("/provinces/:id/districts",async(req,res)=>res.json(await prisma.district.findMany({where:{provinceId:req.params.id},orderBy:{nameAr:"asc"}})));
+
+export default router;
+
+================================================================================
+===== FILE: backend/src/routes/notifications.ts =====
+================================================================================
+
+import {Router} from "express";
+import {prisma} from "../db";
+import {permission,requireAuth} from "../middleware";
+const router=Router();
+
+router.get("/",requireAuth,permission("notifications.read"),async(req,res)=>{
+  res.json(await prisma.notification.findMany({where:{userId:req.user!.id},orderBy:{createdAt:"desc"},take:100}));
+});
+router.patch("/:id/read",requireAuth,permission("notifications.read"),async(req,res)=>{
+  const row=await prisma.notification.findFirst({where:{id:req.params.id,userId:req.user!.id}});
+  if(!row)return res.status(404).json({message:"غير موجود"});
+  res.json(await prisma.notification.update({where:{id:row.id},data:{readAt:new Date()}}));
+});
+export default router;
+
+================================================================================
+===== FILE: backend/src/routes/profile.ts =====
+================================================================================
+
+import {Router} from "express";
+import {z} from "zod";
+import {prisma} from "../db";
+import {requireAuth} from "../middleware";
+const router=Router();
+
+router.get("/",requireAuth,async(req,res)=>{
+  res.json(await prisma.profile.findUnique({where:{userId:req.user!.id},include:{province:true,district:true}}));
+});
+
+router.put("/",requireAuth,async(req,res)=>{
+  const data=z.object({
+    bio:z.string().max(2000).optional(),skills:z.array(z.string().max(80)).max(50).default([]),
+    experience:z.number().int().min(0).max(80).default(0),cvUrl:z.string().url().optional(),
+    provinceId:z.string().optional(),districtId:z.string().optional()
+  }).parse(req.body);
+  res.json(await prisma.profile.upsert({where:{userId:req.user!.id},update:data,create:{...data,userId:req.user!.id}}));
+});
+
+export default router;
+
+================================================================================
+===== FILE: backend/src/routes/reports.ts =====
+================================================================================
+
+import {Router} from "express";
+import {z} from "zod";
+import {prisma} from "../db";
+import {permission,requireAuth} from "../middleware";
+const router=Router();
+
+router.post("/",requireAuth,permission("reports.create"),async(req,res)=>{
+  const data=z.object({jobId:z.string().optional(),reason:z.string().min(3).max(200),details:z.string().max(2000).optional()}).parse(req.body);
+  res.status(201).json(await prisma.report.create({data:{...data,reporterId:req.user!.id}}));
+});
+
+router.get("/",requireAuth,permission("reports.manage"),async(_req,res)=>{
+  res.json(await prisma.report.findMany({include:{reporter:{select:{id:true,name:true,email:true}},job:true},orderBy:{createdAt:"desc"}}));
+});
+export default router;
+
+================================================================================
+===== FILE: backend/src/server.ts =====
+================================================================================
+
+import express from "express";
+import cors from "cors";
+import helmet from "helmet";
+import morgan from "morgan";
+import rateLimit from "express-rate-limit";
+import {createServer} from "http";
+import {Server} from "socket.io";
+import {env} from "./config/env";
+import {prisma} from "./db";
+import {verifyToken} from "./auth";
+import {errorHandler} from "./error";
+import auth from "./routes/auth";
+import jobs from "./routes/jobs";
+import applications from "./routes/applications";
+import locations from "./routes/locations";
+import profile from "./routes/profile";
+import companies from "./routes/companies";
+import favorites from "./routes/favorites";
+import notifications from "./routes/notifications";
+import chat from "./routes/chat";
+import reports from "./routes/reports";
+import admin from "./routes/admin";
+
+const app=express();
+const server=createServer(app);
+const io=new Server(server,{cors:{origin:env.CORS_ORIGIN==="*"?"*":env.CORS_ORIGIN}});
+app.use(helmet());
+app.use(cors({origin:env.CORS_ORIGIN==="*"?"*":env.CORS_ORIGIN}));
+app.use(express.json({limit:"2mb"}));
+app.use(morgan("combined"));
+app.use(rateLimit({windowMs:60_000,max:180}));
+
+app.get("/health",(_req,res)=>res.json({ok:true,service:"iraqjobs-api",version:"2.0.0"}));
+app.use("/api/auth",auth);
+app.use("/api/jobs",jobs);
+app.use("/api/applications",applications);
+app.use("/api/locations",locations);
+app.use("/api/profile",profile);
+app.use("/api/companies",companies);
+app.use("/api/favorites",favorites);
+app.use("/api/notifications",notifications);
+app.use("/api/chat",chat);
+app.use("/api/reports",reports);
+app.use("/api/admin",admin);
+app.use(errorHandler);
+
+io.use((socket,next)=>{
+  try {
+    const token=socket.handshake.auth?.token;
+    if(!token)return next(new Error("unauthorized"));
+    const payload=verifyToken(token);
+    socket.data.userId=payload.sub;
+    next();
+  } catch { next(new Error("unauthorized")); }
+});
+
+io.on("connection",(socket)=>{
+  socket.on("conversation:join",async(conversationId:string)=>{
+    const member=await prisma.conversationMember.findUnique({where:{conversationId_userId:{conversationId,userId:socket.data.userId}}});
+    if(member)socket.join(`conversation:${conversationId}`);
+  });
+  socket.on("message:send",async(data:{conversationId:string;body:string})=>{
+    if(!data?.body?.trim())return;
+    const member=await prisma.conversationMember.findUnique({where:{conversationId_userId:{conversationId:data.conversationId,userId:socket.data.userId}}});
+    if(!member)return;
+    const msg=await prisma.message.create({data:{conversationId:data.conversationId,senderId:socket.data.userId,body:data.body.trim()}});
+    io.to(`conversation:${data.conversationId}`).emit("message:new",msg);
+  });
+});
+
+server.listen(env.PORT,()=>console.log(`IraqJobs API listening on ${env.PORT}`));
+process.on("SIGINT",async()=>{await prisma.$disconnect();process.exit(0)});
+process.on("SIGTERM",async()=>{await prisma.$disconnect();process.exit(0)});
+
+================================================================================
+===== FILE: backend/tsconfig.json =====
+================================================================================
+
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "rootDir": "src",
+    "outDir": "dist",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts"]
+}
+
+================================================================================
+===== FILE: docker-compose.yml =====
+================================================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: iraqjobs
+      POSTGRES_PASSWORD: iraqjobs
+      POSTGRES_DB: iraqjobs
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iraqjobs -d iraqjobs"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
+
+================================================================================
+===== FILE: docs/API.md =====
+================================================================================
+
+# API
+
+Public:
+- GET /health
+- POST /api/auth/register
+- POST /api/auth/login
+- GET /api/jobs
+- GET /api/jobs/:id
+- GET /api/locations/provinces
+- GET /api/locations/provinces/:id/districts
+- GET /api/companies
+
+Authenticated:
+- GET /api/auth/me
+- GET/PUT /api/profile
+- GET /api/applications/mine
+- POST /api/applications/:jobId
+- PATCH /api/applications/:id/status (employer/admin)
+- POST/PATCH/DELETE /api/jobs
+- GET/POST/DELETE /api/favorites
+- GET/PATCH /api/notifications
+- GET/POST /api/chat/conversations
+- GET/POST /api/chat/conversations/:id/messages
+- POST /api/reports
+
+Admin:
+- GET /api/admin/stats
+- GET /api/admin/users
+- PATCH /api/admin/users/:id
+- GET /api/admin/roles
+
+Socket.IO:
+- auth.token
+- conversation:join
+- message:send
+- message:new
+
+================================================================================
+===== FILE: docs/ARCHITECTURE.md =====
+================================================================================
+
+# Architecture
+
+## Mobile
+Expo Router + React Query + Zustand + SecureStore.
+
+## Backend
+Express + TypeScript + Prisma + PostgreSQL + Socket.IO.
+
+## Dynamic authorization
+User -> UserRole -> Role -> RolePermission -> Permission.
+
+الصلاحيات ليست مرتبطة بالواجهة فقط؛ الـAPI يتحقق منها على الخادم.
+
+## Data
+Province -> District
+User -> Profile
+Employer -> Company -> Job
+Seeker -> Application -> Job
+Conversation -> Members -> Messages
+
+## Production
+ضع API خلف HTTPS، استخدم قاعدة PostgreSQL مُدارة، خزّن الأسرار في Secret Manager، وفعل نسخاً احتياطية ومراقبة.
+
+================================================================================
+===== FILE: mobile/app/(auth)/_layout.tsx =====
+================================================================================
+
+import {Stack} from "expo-router";
+export default function Layout(){return <Stack screenOptions={{headerShown:false}}/>;}
+
+================================================================================
+===== FILE: mobile/app/(auth)/login.tsx =====
+================================================================================
+
+import {useState} from "react";
+import {Alert,Button,StyleSheet,Text,TextInput,View,Pressable} from "react-native";
+import {router} from "expo-router";
+import {login} from "../../src/api/auth";
+import {useAuth} from "../../src/store/auth";
+export default function Login(){
+ const [email,setEmail]=useState("");const [password,setPassword]=useState("");const setSession=useAuth(s=>s.setSession);
+ async function submit(){try{const x=await login(email.trim(),password);await setSession(x.token,x.user);router.replace("/(tabs)/home")}catch(e){Alert.alert("خطأ",e instanceof Error?e.message:"تعذر الدخول")}}
+ return <View style={s.c}><Text style={s.logo}>وظائف العراق 🇮🇶</Text><Text style={s.h}>تسجيل الدخول</Text><TextInput style={s.i} placeholder="البريد الإلكتروني" autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail}/><TextInput style={s.i} placeholder="كلمة المرور" secureTextEntry value={password} onChangeText={setPassword}/><Button title="دخول" onPress={submit}/><Pressable onPress={()=>router.push("/(auth)/register")}><Text style={s.link}>إنشاء حساب جديد</Text></Pressable></View>
+}
+const s=StyleSheet.create({c:{flex:1,justifyContent:"center",padding:24},logo:{fontSize:30,fontWeight:"900",textAlign:"center",marginBottom:35},h:{fontSize:25,fontWeight:"800",textAlign:"right",marginBottom:18},i:{borderWidth:1,borderColor:"#ddd",borderRadius:12,padding:14,marginBottom:12,textAlign:"right"},link:{textAlign:"center",marginTop:20}});
+
+================================================================================
+===== FILE: mobile/app/(auth)/register.tsx =====
+================================================================================
+
+import {useState} from "react";
+import {Alert,Button,StyleSheet,Text,TextInput,View} from "react-native";
+import {router} from "expo-router";
+import {register} from "../../src/api/auth";
+import {useAuth} from "../../src/store/auth";
+export default function Register(){
+ const [name,setName]=useState(""),[email,setEmail]=useState(""),[password,setPassword]=useState(""),[phone,setPhone]=useState(""),[type,setType]=useState<"SEEKER"|"EMPLOYER">("SEEKER");
+ const setSession=useAuth(s=>s.setSession);
+ async function submit(){try{const x=await register(name,email,password,phone,type);await setSession(x.token,x.user);router.replace("/(tabs)/home")}catch(e){Alert.alert("خطأ",e instanceof Error?e.message:"تعذر التسجيل")}}
+ return <View style={s.c}><Text style={s.h}>إنشاء حساب</Text><TextInput style={s.i} placeholder="الاسم الكامل" value={name} onChangeText={setName}/><TextInput style={s.i} placeholder="البريد الإلكتروني" autoCapitalize="none" value={email} onChangeText={setEmail}/><TextInput style={s.i} placeholder="رقم الهاتف" value={phone} onChangeText={setPhone}/><TextInput style={s.i} placeholder="كلمة المرور (8 أحرف على الأقل)" secureTextEntry value={password} onChangeText={setPassword}/><View style={s.switch}><Button title="باحث عن عمل" onPress={()=>setType("SEEKER")}/><Button title="صاحب عمل" onPress={()=>setType("EMPLOYER")}/></View><Button title="إنشاء الحساب" onPress={submit}/></View>
+}
+const s=StyleSheet.create({c:{flex:1,justifyContent:"center",padding:24},h:{fontSize:28,fontWeight:"900",textAlign:"right",marginBottom:20},i:{borderWidth:1,borderColor:"#ddd",borderRadius:12,padding:14,marginBottom:12,textAlign:"right"},switch:{flexDirection:"row",justifyContent:"space-around",marginBottom:15}});
+
+================================================================================
+===== FILE: mobile/app/(tabs)/_layout.tsx =====
+================================================================================
+
+import {Tabs} from "expo-router";
+export default function Layout(){return <Tabs screenOptions={{headerShown:false}}><Tabs.Screen name="home" options={{title:"الرئيسية"}}/><Tabs.Screen name="jobs" options={{title:"الوظائف"}}/><Tabs.Screen name="applications" options={{title:"طلباتي"}}/><Tabs.Screen name="chat" options={{title:"المحادثات"}}/><Tabs.Screen name="profile" options={{title:"حسابي"}}/></Tabs>}
+
+================================================================================
+===== FILE: mobile/app/(tabs)/applications.tsx =====
+================================================================================
+
+import {ActivityIndicator,FlatList,StyleSheet,Text,View} from "react-native";
+import {useQuery} from "@tanstack/react-query";
+import {myApplications} from "../../src/api/jobs";
+export default function Applications(){const {data=[],isLoading}=useQuery({queryKey:["applications"],queryFn:myApplications});if(isLoading)return <View style={s.c}><ActivityIndicator/></View>;return <View style={s.c}><Text style={s.h}>طلباتي</Text><FlatList data={data} keyExtractor={x=>x.id} ListEmptyComponent={<Text>لا توجد طلبات.</Text>} renderItem={({item})=><View style={s.card}><Text style={s.t}>{item.job.title}</Text><Text>الحالة: {item.status}</Text><Text>{item.job.companyName}</Text></View>}/></View>}
+const s=StyleSheet.create({c:{flex:1,padding:18,paddingTop:55},h:{fontSize:28,fontWeight:"900",textAlign:"right",marginBottom:20},card:{padding:15,borderWidth:1,borderColor:"#ddd",borderRadius:12,marginBottom:10},t:{fontWeight:"800",fontSize:18,marginBottom:5}});
+
+================================================================================
+===== FILE: mobile/app/(tabs)/chat.tsx =====
+================================================================================
+
+import {Text,View,StyleSheet,FlatList} from "react-native";
+import {useQuery} from "@tanstack/react-query";
+import {conversations} from "../../src/api/chat";
+export default function Chat(){const {data=[],isLoading}=useQuery({queryKey:["conversations"],queryFn:conversations});return <View style={s.c}><Text style={s.h}>المحادثات</Text>{isLoading?<Text>جار التحميل...</Text>:<FlatList data={data} keyExtractor={x=>x.id} ListEmptyComponent={<Text>لا توجد محادثات.</Text>} renderItem={({item})=><View style={s.card}><Text>محادثة</Text><Text>{item.messages?.[0]?.body||"ابدأ المحادثة"}</Text></View>}/>}</View>}
+const s=StyleSheet.create({c:{flex:1,padding:18,paddingTop:55},h:{fontSize:28,fontWeight:"900",textAlign:"right",marginBottom:20},card:{padding:15,borderWidth:1,borderColor:"#ddd",borderRadius:12,marginBottom:10}});
+
+================================================================================
+===== FILE: mobile/app/(tabs)/home.tsx =====
+================================================================================
+
+import {ScrollView,StyleSheet,Text} from "react-native";
+import {useQuery} from "@tanstack/react-query";
+import {getJobs} from "../../src/api/jobs";
+import {JobCard} from "../../src/components/JobCard";
+import {router} from "expo-router";
+export default function Home(){const {data=[],isLoading}=useQuery({queryKey:["jobs"],queryFn:()=>getJobs()});return <ScrollView contentContainerStyle={s.c}><Text style={s.h}>فرص العمل في العراق 🇮🇶</Text><Text style={s.sub}>وظائف من جميع المحافظات</Text>{isLoading?<Text>جار التحميل...</Text>:data.slice(0,10).map(j=><JobCard key={j.id} job={j} onPress={()=>router.push(`/job/${j.id}`)}/>)}</ScrollView>}
+const s=StyleSheet.create({c:{padding:18,paddingTop:60},h:{fontSize:28,fontWeight:"900",textAlign:"right"},sub:{fontSize:16,textAlign:"right",marginBottom:20,marginTop:5}});
+
+================================================================================
+===== FILE: mobile/app/(tabs)/jobs.tsx =====
+================================================================================
+
+import {useState} from "react";
+import {ActivityIndicator,FlatList,StyleSheet,Text,TextInput,View} from "react-native";
+import {useQuery} from "@tanstack/react-query";
+import {getJobs} from "../../src/api/jobs";
+import {JobCard} from "../../src/components/JobCard";
+import {router} from "expo-router";
+export default function Jobs(){const [q,setQ]=useState("");const {data=[],isLoading,isError}=useQuery({queryKey:["jobs",q],queryFn:()=>getJobs({q})});return <View style={s.c}><Text style={s.h}>البحث عن وظيفة</Text><TextInput style={s.i} placeholder="المهنة، الشركة..." value={q} onChangeText={setQ}/>{isLoading?<ActivityIndicator/>:isError?<Text>تعذر تحميل الوظائف</Text>:<FlatList data={data} keyExtractor={x=>x.id} renderItem={({item})=><JobCard job={item} onPress={()=>router.push(`/job/${item.id}`)}/>} ListEmptyComponent={<Text>لا توجد نتائج.</Text>}/>}</View>}
+const s=StyleSheet.create({c:{flex:1,padding:18,paddingTop:55},h:{fontSize:27,fontWeight:"900",textAlign:"right",marginBottom:15},i:{borderWidth:1,borderColor:"#ddd",borderRadius:12,padding:14,marginBottom:15,textAlign:"right"}});
+
+================================================================================
+===== FILE: mobile/app/(tabs)/profile.tsx =====
+================================================================================
+
+import {Button,StyleSheet,Text,View} from "react-native";
+import {router} from "expo-router";
+import {useAuth} from "../../src/store/auth";
+export default function Profile(){const user=useAuth(s=>s.user);const logout=useAuth(s=>s.logout);async function out(){await logout();router.replace("/(auth)/login")}return <View style={s.c}><Text style={s.h}>حسابي</Text><Text style={s.x}>الاسم: {user?.name}</Text><Text style={s.x}>البريد: {user?.email}</Text><Text style={s.x}>نوع الحساب: {user?.type}</Text>{user?.type==="ADMIN"&&<Button title="لوحة الإدارة" onPress={()=>router.push("/admin")}/>}<Button title="تسجيل الخروج" onPress={out}/></View>}
+const s=StyleSheet.create({c:{flex:1,padding:20,paddingTop:60},h:{fontSize:28,fontWeight:"900",textAlign:"right",marginBottom:25},x:{fontSize:17,textAlign:"right",marginBottom:12}});
+
+================================================================================
+===== FILE: mobile/app/_layout.tsx =====
+================================================================================
+
+import {Stack} from "expo-router";
+import {SafeAreaProvider} from "react-native-safe-area-context";
+import {QueryClient,QueryClientProvider} from "@tanstack/react-query";
+import {useEffect} from "react";
+import {useAuth} from "../src/store/auth";
+const client=new QueryClient();
+export default function RootLayout(){
+ const restore=useAuth(s=>s.restore);useEffect(()=>{restore()},[]);
+ return <QueryClientProvider client={client}><SafeAreaProvider><Stack screenOptions={{headerShown:false}}/></SafeAreaProvider></QueryClientProvider>;
+}
+
+================================================================================
+===== FILE: mobile/app/admin.tsx =====
+================================================================================
+
+import {useQuery} from "@tanstack/react-query";
+import {api} from "../src/api/client";
+import {StyleSheet,Text,View} from "react-native";
+export default function Admin(){const {data,isLoading}=useQuery({queryKey:["admin-stats"],queryFn:()=>api<any>("/admin/stats")});return <View style={s.c}><Text style={s.h}>لوحة الإدارة</Text>{isLoading?<Text>جار التحميل...</Text>:<><Text style={s.card}>المستخدمون: {data.users}</Text><Text style={s.card}>الوظائف النشطة: {data.jobs}</Text><Text style={s.card}>طلبات التقديم: {data.applications}</Text><Text style={s.card}>الشركات: {data.companies}</Text><Text style={s.card}>البلاغات غير المعالجة: {data.reports}</Text></>}</View>}
+const s=StyleSheet.create({c:{flex:1,padding:20,paddingTop:60},h:{fontSize:30,fontWeight:"900",textAlign:"right",marginBottom:25},card:{fontSize:18,padding:16,borderWidth:1,borderColor:"#ddd",borderRadius:12,marginBottom:10,textAlign:"right"}});
+
+================================================================================
+===== FILE: mobile/app/index.tsx =====
+================================================================================
+
+import {Redirect} from "expo-router";
+import {useAuth} from "../src/store/auth";
+export default function Index(){const {token,loading}=useAuth();if(loading)return null;return <Redirect href={token?"/(tabs)/home":"/(auth)/login"}/>;}
+
+================================================================================
+===== FILE: mobile/app/job/[id].tsx =====
+================================================================================
+
+import {Alert,Button,ScrollView,StyleSheet,Text,View} from "react-native";
+import {useQuery,useMutation} from "@tanstack/react-query";
+import {useLocalSearchParams} from "expo-router";
+import {getJob,apply,saveFavorite} from "../../src/api/jobs";
+export default function JobDetails(){const {id}=useLocalSearchParams<{id:string}>();const {data,isLoading}=useQuery({queryKey:["job",id],queryFn:()=>getJob(id),enabled:!!id});const mutation=useMutation({mutationFn:()=>apply(id)});if(isLoading||!data)return <View style={s.c}><Text>جار التحميل...</Text></View>;return <ScrollView contentContainerStyle={s.c}><Text style={s.h}>{data.title}</Text><Text style={s.company}>{data.companyName}</Text><Text style={s.loc}>{data.province.nameAr}{data.district?` - ${data.district.nameAr}`:""}</Text><Text style={s.body}>{data.description}</Text><Text style={s.salary}>الراتب: {data.salaryMin||"-"} - {data.salaryMax||"-"} {data.currency}</Text><Button title={mutation.isPending?"جار التقديم...":"تقديم على الوظيفة"} disabled={mutation.isPending} onPress={()=>mutation.mutate(undefined,{onSuccess:()=>Alert.alert("تم","تم إرسال الطلب"),onError:e=>Alert.alert("تنبيه",e.message)})}/><View style={{height:12}}/><Button title="حفظ بالمفضلة" onPress={async()=>{try{await saveFavorite(id);Alert.alert("تم","تم حفظ الوظيفة")}catch(e){Alert.alert("تنبيه",e instanceof Error?e.message:"تعذر الحفظ")}}}/></ScrollView>}
+const s=StyleSheet.create({c:{padding:20,paddingTop:55},h:{fontSize:30,fontWeight:"900",textAlign:"right"},company:{fontSize:19,textAlign:"right",marginTop:8},loc:{textAlign:"right",marginTop:8},body:{fontSize:17,lineHeight:28,textAlign:"right",marginVertical:25},salary:{fontSize:17,fontWeight:"800",textAlign:"right",marginBottom:20}});
+
+================================================================================
+===== FILE: mobile/app.json =====
+================================================================================
+
+{
+  "expo": {
+    "name": "وظائف العراق",
+    "slug": "iraqjobs",
+    "version": "2.0.0",
+    "orientation": "portrait",
+    "scheme": "iraqjobs",
+    "userInterfaceStyle": "automatic",
+    "plugins": ["expo-router", "expo-secure-store"],
+    "android": {
+      "package": "com.iraqjobs.app"
+    },
+    "ios": {
+      "bundleIdentifier": "com.iraqjobs.app"
+    }
+  }
+}
+
+================================================================================
+===== FILE: mobile/assets/README.md =====
+================================================================================
+
+ضع هنا ملفات الأيقونة وSplash الخاصة بك إذا أردت تخصيصهما.
+النسخة الحالية لا تشير إلى ملفات صور غير موجودة، لذلك لن تحصل على خطأ "cannot access file".
+
+================================================================================
+===== FILE: mobile/package.json =====
+================================================================================
+
+{
+  "name": "iraqjobs-mobile",
+  "version": "2.0.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.85.0",
+    "expo": "^54.0.0",
+    "expo-router": "^6.0.0",
+    "expo-secure-store": "~14.2.4",
+    "react": "19.1.0",
+    "react-native": "0.81.0",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "socket.io-client": "^4.8.1",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.10",
+    "typescript": "~5.9.2"
+  }
+}
+
+================================================================================
+===== FILE: mobile/src/api/auth.ts =====
+================================================================================
+
+import {api} from "./client";
+import type {User} from "../types";
+export const login=(email:string,password:string)=>api<{token:string;user:User}>("/auth/login",{method:"POST",body:JSON.stringify({email,password})});
+export const register=(name:string,email:string,password:string,phone:string,type:"SEEKER"|"EMPLOYER")=>api<{token:string;user:User}>("/auth/register",{method:"POST",body:JSON.stringify({name,email,password,phone,type})});
+export const me=()=>api<User>("/auth/me");
+
+================================================================================
+===== FILE: mobile/src/api/chat.ts =====
+================================================================================
+
+import {api} from "./client";
+import type {Message} from "../types";
+export type Conversation={id:string;jobId?:string;members:{user:{id:string;name:string}}[];messages:Message[]};
+export const conversations=()=>api<Conversation[]>("/chat/conversations");
+export const messages=(id:string)=>api<Message[]>(`/chat/conversations/${id}/messages`);
+export const createConversation=(otherUserId:string,jobId?:string)=>api<Conversation>("/chat/conversations",{method:"POST",body:JSON.stringify({otherUserId,jobId})});
+export const sendMessage=(id:string,body:string)=>api<Message>(`/chat/conversations/${id}/messages`,{method:"POST",body:JSON.stringify({body})});
+
+================================================================================
+===== FILE: mobile/src/api/client.ts =====
+================================================================================
+
+import {API_BASE_URL} from "../config/env";
+import {useAuth} from "../store/auth";
+
+export async function api<T>(path:string,options:RequestInit={}):Promise<T>{
+ const token=useAuth.getState().token;
+ const headers=new Headers(options.headers);
+ headers.set("Content-Type","application/json");
+ if(token)headers.set("Authorization",`Bearer ${token}`);
+ const res=await fetch(`${API_BASE_URL}${path}`,{...options,headers});
+ const data=await res.json().catch(()=>null);
+ if(!res.ok)throw new Error(data?.message||"تعذر الاتصال بالخادم");
+ return data as T;
+}
+
+================================================================================
+===== FILE: mobile/src/api/jobs.ts =====
+================================================================================
+
+import {api} from "./client";
+import type {Job,Application} from "../types";
+export const getJobs=(params:{q?:string;provinceId?:string;type?:string}={})=>{
+ const qs=new URLSearchParams();
+ if(params.q)qs.set("q",params.q);if(params.provinceId)qs.set("provinceId",params.provinceId);if(params.type)qs.set("type",params.type);
+ return api<Job[]>(`/jobs${qs.toString()?`?${qs}`:""}`);
+};
+export const getJob=(id:string)=>api<Job>(`/jobs/${id}`);
+export const apply=(jobId:string,note?:string)=>api<Application>(`/applications/${jobId}`,{method:"POST",body:JSON.stringify({note})});
+export const myApplications=()=>api<Application[]>("/applications/mine");
+export const saveFavorite=(id:string)=>api(`/favorites/${id}`,{method:"POST"});
+export const removeFavorite=(id:string)=>api(`/favorites/${id}`,{method:"DELETE"});
+export const favorites=()=>api<Job[]>("/favorites");
+
+================================================================================
+===== FILE: mobile/src/api/locations.ts =====
+================================================================================
+
+import {api} from "./client";
+import type {Province} from "../types";
+export const provinces=()=>api<Province[]>("/locations/provinces");
+export const districts=(id:string)=>api<{id:string;nameAr:string}[]>(`/locations/provinces/${id}/districts`);
+
+================================================================================
+===== FILE: mobile/src/api/notifications.ts =====
+================================================================================
+
+import {api} from "./client";
+export type Notification={id:string;title:string;body:string;readAt?:string;createdAt:string};
+export const notifications=()=>api<Notification[]>("/notifications");
+export const markRead=(id:string)=>api(`/notifications/${id}/read`,{method:"PATCH"});
+
+================================================================================
+===== FILE: mobile/src/api/profile.ts =====
+================================================================================
+
+import {api} from "./client";
+export const getProfile=()=>api<any>("/profile");
+export const updateProfile=(data:any)=>api<any>("/profile",{method:"PUT",body:JSON.stringify(data)});
+
+================================================================================
+===== FILE: mobile/src/components/JobCard.tsx =====
+================================================================================
+
+import {Pressable,StyleSheet,Text,View} from "react-native";
+import type {Job} from "../types";
+export function JobCard({job,onPress}:{job:Job;onPress:()=>void}){
+ return <Pressable onPress={onPress} style={s.card}>
+  <Text style={s.title}>{job.title}</Text>
+  <Text style={s.company}>{job.companyName}</Text>
+  <Text>{job.province.nameAr}{job.district?` - ${job.district.nameAr}`:""}</Text>
+  <View style={s.row}><Text>{job.type}</Text><Text style={s.salary}>{job.salaryMin||job.salaryMax?`${job.salaryMin||""} - ${job.salaryMax||""} ${job.currency}`:"الراتب يحدد بالمقابلة"}</Text></View>
+ </Pressable>
+}
+const s=StyleSheet.create({card:{padding:16,borderWidth:1,borderColor:"#ddd",borderRadius:16,marginBottom:12,backgroundColor:"#fff"},title:{fontSize:19,fontWeight:"800",textAlign:"right"},company:{fontSize:16,marginVertical:5,textAlign:"right"},row:{flexDirection:"row",justifyContent:"space-between",marginTop:10},salary:{fontWeight:"700"}});
+
+================================================================================
+===== FILE: mobile/src/config/env.ts =====
+================================================================================
+
+// للـAndroid Emulator استخدم 10.0.2.2 بدلاً من localhost.
+// للهاتف الحقيقي استخدم IP الكمبيوتر داخل الشبكة، مثال: http://192.168.1.10:4000
+export const API_BASE_URL="http://10.0.2.2:4000/api";
+export const SOCKET_URL="http://10.0.2.2:4000";
+
+================================================================================
+===== FILE: mobile/src/store/auth.ts =====
+================================================================================
+
+import {create} from "zustand";
+import * as SecureStore from "expo-secure-store";
+import type {User} from "../types";
+
+type State={
+ token:string|null;user:User|null;loading:boolean;
+ setSession:(token:string,user:User)=>Promise<void>;
+ logout:()=>Promise<void>;restore:()=>Promise<void>;
+};
+export const useAuth=create<State>((set)=>({
+ token:null,user:null,loading:true,
+ setSession:async(token,user)=>{await SecureStore.setItemAsync("token",token);await SecureStore.setItemAsync("user",JSON.stringify(user));set({token,user,loading:false});},
+ logout:async()=>{await SecureStore.deleteItemAsync("token");await SecureStore.deleteItemAsync("user");set({token:null,user:null,loading:false});},
+ restore:async()=>{const [token,user]=await Promise.all([SecureStore.getItemAsync("token"),SecureStore.getItemAsync("user")]);set({token,user:user?JSON.parse(user):null,loading:false});}
+}));
+
+================================================================================
+===== FILE: mobile/src/types/index.ts =====
+================================================================================
+
+export type UserType="SEEKER"|"EMPLOYER"|"ADMIN";
+export type User={id:string;name:string;email:string;phone?:string;type:UserType};
+export type Job={
+ id:string;title:string;description:string;salaryMin?:number;salaryMax?:number;currency:string;
+ type:string;companyName:string;address?:string;province:{id:string;nameAr:string};
+ district?:{id:string;nameAr:string};company?:{id:string;name:string}|null;employer?:{id:string;name:string}
+};
+export type Application={id:string;status:string;createdAt:string;job:Job};
+export type Province={id:string;nameAr:string};
+export type Message={id:string;conversationId?:string;senderId:string;body:string;createdAt:string};
+
+================================================================================
+===== FILE: mobile/tsconfig.json =====
+================================================================================
+
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {"@/*":["./src/*"]}
+  }
+}
