@@ -23,6 +23,11 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Force Java 17 Environment
+        run: |
+          echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
+          java -version
+
       - name: Create dummy icon to fix missing asset error
         run: |
           mkdir -p assets
