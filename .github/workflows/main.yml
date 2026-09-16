@@ -37,7 +37,7 @@ jobs:
       - name: Fix missing color resources
         run: |
           mkdir -p android/app/src/main/res/values
-          echo '<?xml version="1.0" encoding="utf-8"?><resources><color name="splashscreen_background">#ffffff</color><color name="colorPrimary">#0984e3</color></resources>' > android/app/src/main/res/values/colors.xml
+          echo '<resources><color name="splashscreen_background">#ffffff</color><color name="colorPrimary">#0984e3</color></resources>' > android/app/src/main/res/values/colors.xml
 
       - name: Bundle JavaScript for Standalone App
         run: |
