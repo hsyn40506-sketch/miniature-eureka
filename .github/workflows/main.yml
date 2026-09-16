@@ -34,6 +34,14 @@ jobs:
       - name: Run Expo Prebuild
         run: npx expo prebuild --platform android --no-install
 
+      - name: Create metro.config.js if missing
+        run: |
+          if [ ! -f metro.config.js ]; then
+            echo "const { getDefaultConfig } = require('expo/metro-config');" > metro.config.js
+            echo "const config = getDefaultConfig(__dirname);" >> metro.config.js
+            echo "module.exports = config;" >> metro.config.js
+          fi
+
       - name: Fix missing color resources
         run: |
           mkdir -p android/app/src/main/res/values
