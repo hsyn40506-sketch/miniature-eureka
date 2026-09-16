@@ -4,10 +4,11 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, SafeAr
 // استيراد فايربيز (Firebase)
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, getDocs, addDoc } from "firebase/firestore";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
 
-// إعدادات الاتصال بقاعدة البيانات السحابية الخاصة بك
+// إعدادات الاتصال بقاعدة البيانات السحابية الخاصة بك (تأكد من وضع مفاتيحك الكاملة هنا)
 const firebaseConfig = {
-  apiKey: "نسخ_مفتاح_الـ_API_الكامل_من_الفايربيز",
+  apiKey: "نسخ_مفتاح_API_الكامل_من_الفايربيز",
   authDomain: "gmal-1ed42.firebaseapp.com",
   projectId: "gmal-1ed42",
   storageBucket: "gmal-1ed42.appspot.com",
@@ -18,9 +19,15 @@ const firebaseConfig = {
 // تهيئة الفايربيز
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
 
 export default function App() {
+  const [user, setUser] = useState(null);
   const [screen, setScreen] = useState("welcome");
+  const [isLoginMode, setIsLoginMode] = useState(true);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  
   const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState(null);
   const [search, setSearch] = useState("");
@@ -31,9 +38,13 @@ export default function App() {
   const [newCity, setNewCity] = useState("");
   const [newSalary, setNewSalary] = useState("");
 
-  // جلب الوظائف من سحابة Firebase عند فتح التطبيق
+  // مراقبة حالة تسجيل الدخول تلقائياً
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
     fetchJobs();
+    return unsubscribe;
   }, []);
 
   const fetchJobs = async () => {
@@ -43,7 +54,6 @@ export default function App() {
       if (jobsList.length > 0) {
         setJobs(jobsList);
       } else {
-        // وظائف افتراضية في حال كانت القاعدة فارغة
         setJobs([
           { id: "1", title: "عامل صيانة", company: "شركة الأمل", city: "الحلة - بابل", salary: "600,000 د.ع", type: "دوام كامل" }
         ]);
@@ -53,7 +63,41 @@ export default function App() {
     }
   };
 
+  const handleAuthentication = async () => {
+    if (!email || !password) {
+      Alert.alert("تنبيه", "يرجى إدخال البريد الإلكتروني وكلمة المرور");
+      return;
+    }
+    try {
+      if (isLoginMode) {
+        await signInWithEmailAndPassword(auth, email, password);
+        Alert.alert("نجاح", "تم تسجيل الدخول بنجاح!");
+      } else {
+        await createUserWithEmailAndPassword(auth, email, password);
+        Alert.alert("نجاح", "تم إنشاء الحساب وتسجيل الدخول بنجاح!");
+      }
+      setScreen("roles");
+    } catch (error) {
+      Alert.alert("خطأ", error.message);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setScreen("welcome");
+      Alert.alert("تم", "تم تسجيل الخروج بنجاح");
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
   const handlePostJob = async () => {
+    if (!user) {
+      Alert.alert("تنبيه", "يجب تسجيل الدخول أولاً لنشر وظيفة جديدة");
+      setScreen("auth");
+      return;
+    }
     if (!newTitle || !newCompany) {
       Alert.alert("تنبيه", "يرجى ملء الحقول الأساسية على الأقل");
       return;
@@ -65,12 +109,11 @@ export default function App() {
         city: newCity || "الحلة - المحاويل",
         salary: newSalary || "حسب الاتفاق",
         type: "دوام كامل",
+        postedBy: user.email,
         createdAt: new Date().toISOString()
       };
       
-      // إرسال الوظيفة إلى سحابة Firebase لتظهر لكل المستخدمين
       await addDoc(collection(db, "jobs"), newJobData);
-      
       Alert.alert("نجاح", "تم نشر الوظيفة في السحابة بنجاح!");
       setNewTitle("");
       setNewCompany("");
@@ -97,8 +140,8 @@ export default function App() {
             <Text style={styles.title}>أهلاً بيك بفرصتي</Text>
             <Text style={styles.description}>ابحث عن عمل أو انشر فرصة لتصل لكل الباحثين.</Text>
             
-            <TouchableOpacity style={styles.button} onPress={() => setScreen("roles")}>
-              <Text style={styles.buttonText}>ابدأ الآن</Text>
+            <TouchableOpacity style={styles.button} onPress={() => setScreen(user ? "roles" : "auth")}>
+              <Text style={styles.buttonText}>{user ? "الدخول للتطبيق" : "تسجيل الدخول / إنشاء حساب"}</Text>
             </TouchableOpacity>
           </View>
 
@@ -109,8 +152,51 @@ export default function App() {
         </View>
       )}
 
+      {screen === "auth" && (
+        <View style={styles.page}>
+          <TouchableOpacity onPress={() => setScreen("welcome")}>
+            <Text style={styles.backText}>← رجوع</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>{isLoginMode ? "تسجيل الدخول" : "إنشاء حساب جديد"}</Text>
+          
+          <TextInput 
+            style={styles.input} 
+            placeholder="البريد الإلكتروني (Email)" 
+            placeholderTextColor="#888" 
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={email} 
+            onChangeText={setEmail}
+          />
+          <TextInput 
+            style={styles.input} 
+            placeholder="كلمة المرور (Password)" 
+            placeholderTextColor="#888" 
+            secureTextEntry
+            value={password} 
+            onChangeText={setPassword}
+          />
+
+          <TouchableOpacity style={styles.button} onPress={handleAuthentication}>
+            <Text style={styles.buttonText}>{isLoginMode ? "دخول" : "تسجيل حساب"}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => setIsLoginMode(!isLoginMode)} style={{ marginTop: 20, alignItems: 'center' }}>
+            <Text style={{ color: "#0984e3", fontSize: 14 }}>
+              {isLoginMode ? "ما عندك حساب؟ اضغط هنا لإنشاء حساب جديد" : "عندك حساب؟ اضغط هنا لتسجيل الدخول"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {screen === "roles" && (
         <View style={styles.page}>
+          <View style={styles.headerRow}>
+            <Text style={styles.welcomeUser}>مرحباً: {user ? user.email : "زائر"}</Text>
+            <TouchableOpacity onPress={handleLogout}>
+              <Text style={{ color: "red", fontWeight: "bold" }}>تسجيل خروج</Text>
+            </TouchableOpacity>
+          </View>
           <Text style={styles.title}>شنو تريد تستخدم التطبيق؟</Text>
           <TouchableOpacity style={styles.roleCard} onPress={() => setScreen("home")}>
             <Text style={styles.bigIcon}>👷</Text>
@@ -213,5 +299,7 @@ const styles = StyleSheet.create({
   detailsCard: { backgroundColor: "#fff", padding: 20, borderRadius: 10, marginBottom: 20 },
   backText: { color: "#0984e3", fontSize: 16, marginBottom: 10, fontWeight: "bold" },
   footer: { alignItems: 'center', paddingBottom: 10 },
-  footerText: { fontSize: 14, color: '#b2bec3', fontWeight: '600' }
+  footerText: { fontSize: 14, color: '#b2bec3', fontWeight: '600' },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+  welcomeUser: { fontSize: 14, color: '#2f3640', fontWeight: 'bold' }
 });
