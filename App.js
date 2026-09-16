@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView, Alert } from "react-native";
+import * as Location from 'expo-location';
 
 const initialJobs = [
   { id: 1, title: "عامل صيانة", company: "شركة الأمل", city: "الحلة - بابل", salary: "600,000 - 800,000 د.ع", type: "دوام كامل" },
@@ -22,6 +23,34 @@ export default function App() {
   const filteredJobs = jobs.filter(j => `${j.title} ${j.company} ${j.city}`.includes(search));
   const openJob = job => { setSelectedJob(job); setScreen("details"); };
 
+  // دالة التعامل مع زر ابدأ الآن (طلب الموقع والتحقق من الحساب)
+  const handleStartButtonPress = async () => {
+    try {
+      // 1. طلب صلاحيات الموقع الجغرافي
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'تنبيه الصلاحيات', 
+          'نحتاج إلى إذن الوصول للموقع الجغرافي لنتمكن من عرض فرص العمل القريبة منك بدقة.'
+        );
+      }
+
+      // 2. التحقق من الحساب الحقيقي (يمكنك ربطه لاحقاً بـ Firebase)
+      const isUserLoggedIn = false; 
+      if (!isUserLoggedIn) {
+        // يمكنك تفعيل شاشة تسجيل الدخول هنا مستقبلاً
+      }
+
+      // الانتقال لشاشة اختيار الدور
+      setScreen("roles");
+
+    } catch (error) {
+      Alert.alert('تنبيه', 'حدث خطأ أثناء طلب صلاحيات الموقع.');
+      setScreen("roles");
+    }
+  };
+
   const handlePostJob = () => {
     if (!newTitle || !newCompany) {
       Alert.alert("تنبيه", "يرجى ملء الحقول الأساسية على الأقل");
@@ -43,15 +72,23 @@ export default function App() {
   return (
     <SafeAreaView style={styles.container}>
       {screen === "welcome" && (
-        <View style={styles.center}>
-          <Text style={styles.logo}>💼 فرصتي</Text>
-          <Text style={styles.subtitle}>فرص عمل أقرب إلك</Text>
-          <Text style={styles.bigIcon}>🔎</Text>
-          <Text style={styles.title}>أهلاً بيك بفرصتي</Text>
-          <Text style={styles.description}>دور على شغل مناسب أو انشر فرصة عمل بسهولة.</Text>
-          <TouchableOpacity style={styles.button} onPress={() => setScreen("roles")}>
-            <Text style={styles.buttonText}>ابدأ الآن</Text>
-          </TouchableOpacity>
+        <View style={styles.welcomeContainer}>
+          <View style={styles.center}>
+            <Text style={styles.logo}>💼 فرصتي</Text>
+            <Text style={styles.subtitle}>فرص عمل أقرب إلك</Text>
+            <Text style={styles.bigIcon}>🔎</Text>
+            <Text style={styles.title}>أهلاً بيك بفرصتي</Text>
+            <Text style={styles.description}>دور على شغل مناسب أو انشر فرصة عمل بسهولة.</Text>
+            
+            <TouchableOpacity style={styles.button} onPress={handleStartButtonPress}>
+              <Text style={styles.buttonText}>ابدأ الآن</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* حقوق البرمجة */}
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>تصميم وبرمجة: جمال الحسناوي ⚡</Text>
+          </View>
         </View>
       )}
 
@@ -138,14 +175,15 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f5f6fa" },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 20 },
+  welcomeContainer: { flex: 1, justifyContent: "space-between", alignItems: "center", paddingVertical: 30, paddingHorizontal: 20 },
+  center: { flex: 1, justifyContent: "center", alignItems: "center", width: "100%" },
   page: { flex: 1, padding: 20 },
   logo: { fontSize: 32, fontWeight: "bold", color: "#2f3640", marginBottom: 5 },
   subtitle: { fontSize: 16, color: "#718093", marginBottom: 20 },
   bigIcon: { fontSize: 40, textAlign: "center", marginVertical: 10 },
   title: { fontSize: 24, fontWeight: "bold", color: "#2f3640", marginBottom: 15, textAlign: "center" },
   description: { fontSize: 14, color: "#718093", textAlign: "center", marginBottom: 20 },
-  button: { backgroundColor: "#0984e3", padding: 15, borderRadius: 10, alignItems: "center", marginTop: 15 },
+  button: { backgroundColor: "#0984e3", padding: 15, borderRadius: 10, alignItems: "center", marginTop: 15, width: "100%" },
   buttonText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
   roleCard: { backgroundColor: "#fff", padding: 20, borderRadius: 12, marginBottom: 15, elevation: 3 },
   employerCard: { backgroundColor: "#fff", padding: 20, borderRadius: 12, marginBottom: 15, elevation: 3 },
@@ -158,5 +196,7 @@ const styles = StyleSheet.create({
   salary: { fontSize: 14, fontWeight: "bold", color: "#00b894", marginVertical: 5 },
   tag: { alignSelf: "flex-start", backgroundColor: "#dfe6e9", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 5, fontSize: 12, color: "#2d3436" },
   detailsCard: { backgroundColor: "#fff", padding: 20, borderRadius: 10, marginBottom: 20 },
-  backText: { color: "#0984e3", fontSize: 16, marginBottom: 10, fontWeight: "bold" }
+  backText: { color: "#0984e3", fontSize: 16, marginBottom: 10, fontWeight: "bold" },
+  footer: { alignItems: 'center', paddingBottom: 10 },
+  footerText: { fontSize: 14, color: '#b2bec3', fontWeight: '600' }
 });
