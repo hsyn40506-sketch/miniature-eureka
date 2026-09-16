@@ -23,11 +23,6 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Force Java 17 Environment
-        run: |
-          echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
-          java -version
-
       - name: Create dummy icon to fix missing asset error
         run: |
           mkdir -p assets
@@ -39,15 +34,15 @@ jobs:
       - name: Run Expo Prebuild
         run: npx expo prebuild --platform android --no-install
 
-      - name: Configure Gradle Properties
+      - name: Grant execute permission for gradlew
         run: |
           cd android
-          echo "org.gradle.jvmargs=-Xmx3g -XX:+MaxMetaspaceSize=512m" >> gradle.properties
+          chmod +x gradlew
 
       - name: Build Debug APK with Gradle
         run: |
           cd android
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
