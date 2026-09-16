@@ -24,14 +24,6 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION"
       ]
-    },
-    "plugins": [
-      [
-        "expo-location",
-        {
-          "locationWhenInUsePermission": "نحتاج موقعك لنعرض فرص العمل القريبة منك."
-        }
-      ]
-    ]
+    }
   }
 }
