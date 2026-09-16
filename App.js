@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView, Alert } from "react-native";
-import * as Location from 'expo-location';
 
 const initialJobs = [
   { id: 1, title: "عامل صيانة", company: "شركة الأمل", city: "الحلة - بابل", salary: "600,000 - 800,000 د.ع", type: "دوام كامل" },
@@ -22,34 +21,6 @@ export default function App() {
 
   const filteredJobs = jobs.filter(j => `${j.title} ${j.company} ${j.city}`.includes(search));
   const openJob = job => { setSelectedJob(job); setScreen("details"); };
-
-  // دالة التعامل مع زر ابدأ الآن (طلب الموقع والتحقق من الحساب)
-  const handleStartButtonPress = async () => {
-    try {
-      // 1. طلب صلاحيات الموقع الجغرافي
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      
-      if (status !== 'granted') {
-        Alert.alert(
-          'تنبيه الصلاحيات', 
-          'نحتاج إلى إذن الوصول للموقع الجغرافي لنتمكن من عرض فرص العمل القريبة منك بدقة.'
-        );
-      }
-
-      // 2. التحقق من الحساب الحقيقي (يمكنك ربطه لاحقاً بـ Firebase)
-      const isUserLoggedIn = false; 
-      if (!isUserLoggedIn) {
-        // يمكنك تفعيل شاشة تسجيل الدخول هنا مستقبلاً
-      }
-
-      // الانتقال لشاشة اختيار الدور
-      setScreen("roles");
-
-    } catch (error) {
-      Alert.alert('تنبيه', 'حدث خطأ أثناء طلب صلاحيات الموقع.');
-      setScreen("roles");
-    }
-  };
 
   const handlePostJob = () => {
     if (!newTitle || !newCompany) {
@@ -80,7 +51,7 @@ export default function App() {
             <Text style={styles.title}>أهلاً بيك بفرصتي</Text>
             <Text style={styles.description}>دور على شغل مناسب أو انشر فرصة عمل بسهولة.</Text>
             
-            <TouchableOpacity style={styles.button} onPress={handleStartButtonPress}>
+            <TouchableOpacity style={styles.button} onPress={() => setScreen("roles")}>
               <Text style={styles.buttonText}>ابدأ الآن</Text>
             </TouchableOpacity>
           </View>
