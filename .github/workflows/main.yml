@@ -42,7 +42,7 @@ jobs:
       - name: Configure Gradle Memory
         run: |
           cd android
-          echo "org.gradle.jvmargs=-Xmx3g -XX:+MaxMetaspaceSize=512m" >> gradle.properties
+          echo "org.gradle.jvmargs=-Xmx3g" >> gradle.properties
 
       - name: Build Debug APK with Gradle
         run: |
