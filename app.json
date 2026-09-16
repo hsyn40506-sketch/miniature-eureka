@@ -5,10 +5,12 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "icon": "./assets/icon.png",
+    "ios": {
+      "supportsTablet": true
+    },
     "android": {
-      "package": "com.forsati.jobs",
-      "versionCode": 1
-    }
+      "package": "com.gmalgmal.forsati"
+    },
+    "plugins": []
   }
 }
