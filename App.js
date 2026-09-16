@@ -1,15 +1,27 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView, Alert } from "react-native";
 
-const initialJobs = [
-  { id: 1, title: "عامل صيانة", company: "شركة الأمل", city: "الحلة - بابل", salary: "600,000 - 800,000 د.ع", type: "دوام كامل" },
-  { id: 2, title: "سائق", company: "مؤسسة النور", city: "الحلة - بابل", salary: "700,000 د.ع", type: "دوام كامل" },
-  { id: 3, title: "كهربائي", company: "شركة البناء", city: "الحلة - بابل", salary: "500,000 - 700,000 د.ع", type: "دوام كامل" }
-];
+// استيراد فايربيز (Firebase)
+import { initializeApp } from "firebase/app";
+import { getFirestore, collection, getDocs, addDoc } from "firebase/firestore";
+
+// إعدادات الاتصال بقاعدة البيانات السحابية (Firebase Config)
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_AUTH_DOMAIN",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_STORAGE_BUCKET",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+// تهيئة الفايربيز
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
 export default function App() {
   const [screen, setScreen] = useState("welcome");
-  const [jobs, setJobs] = useState(initialJobs);
+  const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState(null);
   const [search, setSearch] = useState("");
   
@@ -19,26 +31,60 @@ export default function App() {
   const [newCity, setNewCity] = useState("");
   const [newSalary, setNewSalary] = useState("");
 
-  const filteredJobs = jobs.filter(j => `${j.title} ${j.company} ${j.city}`.includes(search));
-  const openJob = job => { setSelectedJob(job); setScreen("details"); };
+  // جلب الوظائف من سحابة Firebase عند فتح التطبيق
+  useEffect(() => {
+    fetchJobs();
+  }, []);
 
-  const handlePostJob = () => {
+  const fetchJobs = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, "jobs"));
+      const jobsList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      if (jobsList.length > 0) {
+        setJobs(jobsList);
+      } else {
+        // وظائف افتراضية في حال كانت القاعدة فارغة
+        setJobs([
+          { id: "1", title: "عامل صيانة", company: "شركة الأمل", city: "الحلة - بابل", salary: "600,000 د.ع", type: "دوام كامل" }
+        ]);
+      }
+    } catch (error) {
+      console.log("خطأ في جلب البيانات:", error);
+    }
+  };
+
+  const handlePostJob = async () => {
     if (!newTitle || !newCompany) {
       Alert.alert("تنبيه", "يرجى ملء الحقول الأساسية على الأقل");
       return;
     }
-    const newJ = {
-      id: jobs.length + 1,
-      title: newTitle,
-      company: newCompany,
-      city: newCity || "الحلة - بابل",
-      salary: newSalary || "حسب الاتفاق",
-      type: "دوام كامل"
-    };
-    setJobs([newJ, ...jobs]);
-    Alert.alert("نجاح", "تم نشر الوظيفة بنجاح!");
-    setScreen("home");
+    try {
+      const newJobData = {
+        title: newTitle,
+        company: newCompany,
+        city: newCity || "الحلة - بابل",
+        salary: newSalary || "حسب الاتفاق",
+        type: "دوام كامل",
+        createdAt: new Date().toISOString()
+      };
+      
+      // إرسال الوظيفة إلى سحابة Firebase لتظهر لكل المستخدمين
+      await addDoc(collection(db, "jobs"), newJobData);
+      
+      Alert.alert("نجاح", "تم نشر الوظيفة في السحابة بنجاح!");
+      setNewTitle("");
+      setNewCompany("");
+      setNewCity("");
+      setNewSalary("");
+      fetchJobs();
+      setScreen("home");
+    } catch (error) {
+      Alert.alert("خطأ", "فشل نشر الوظيفة، تأكد من الاتصال بالإنترنت");
+    }
   };
+
+  const filteredJobs = jobs.filter(j => `${j.title} ${j.company} ${j.city}`.includes(search));
+  const openJob = job => { setSelectedJob(job); setScreen("details"); };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -46,10 +92,10 @@ export default function App() {
         <View style={styles.welcomeContainer}>
           <View style={styles.center}>
             <Text style={styles.logo}>💼 فرصتي</Text>
-            <Text style={styles.subtitle}>فرص عمل أقرب إلك</Text>
-            <Text style={styles.bigIcon}>🔎</Text>
+            <Text style={styles.subtitle}>فرص عمل سحابية وعالمية</Text>
+            <Text style={styles.bigIcon}>🌐</Text>
             <Text style={styles.title}>أهلاً بيك بفرصتي</Text>
-            <Text style={styles.description}>دور على شغل مناسب أو انشر فرصة عمل بسهولة.</Text>
+            <Text style={styles.description}>ابحث عن عمل أو انشر فرصة لتصل لكل الباحثين.</Text>
             
             <TouchableOpacity style={styles.button} onPress={() => setScreen("roles")}>
               <Text style={styles.buttonText}>ابدأ الآن</Text>
@@ -69,12 +115,12 @@ export default function App() {
           <TouchableOpacity style={styles.roleCard} onPress={() => setScreen("home")}>
             <Text style={styles.bigIcon}>👷</Text>
             <Text style={styles.cardTitle}>أريد أبحث عن عمل</Text>
-            <Text style={styles.description}>تصفح الوظائف وقدم عليها.</Text>
+            <Text style={styles.description}>تصفح الوظائف المتاحة بالسحابة.</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.employerCard} onPress={() => setScreen("post")}>
             <Text style={styles.bigIcon}>🏢</Text>
             <Text style={styles.cardTitle}>أريد أنشر وظيفة</Text>
-            <Text style={styles.description}>أعلن عن وظيفة ووصل للمتقدمين.</Text>
+            <Text style={styles.description}>أعلن عن وظيفة لتظهر للجميع.</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -84,7 +130,7 @@ export default function App() {
           <TouchableOpacity onPress={() => setScreen("roles")}>
             <Text style={styles.backText}>← رجوع</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>هلا بيك 👋</Text>
+          <Text style={styles.title}>الوظائف المتاحة 🌍</Text>
           <TextInput 
             style={styles.input} 
             placeholder="🔎 ابحث عن وظيفة" 
@@ -92,7 +138,6 @@ export default function App() {
             value={search} 
             onChangeText={setSearch}
           />
-          <Text style={styles.sectionTitle}>أحدث فرص العمل</Text>
           <ScrollView>
             {filteredJobs.map(job => (
               <TouchableOpacity key={job.id} style={styles.jobCard} onPress={() => openJob(job)}>
@@ -119,7 +164,7 @@ export default function App() {
             <Text style={styles.salary}>💰 الراتب: {selectedJob.salary}</Text>
             <Text style={styles.tag}>{selectedJob.type}</Text>
           </View>
-          <TouchableOpacity style={styles.button} onPress={() => Alert.alert("تم التقديم", "تم إرسال طلبك بنجاح!")}>
+          <TouchableOpacity style={styles.button} onPress={() => Alert.alert("تم التقديم", "تم إرسال طلبك للشركة بنجاح!")}>
             <Text style={styles.buttonText}>قدم على الوظيفة</Text>
           </TouchableOpacity>
         </View>
@@ -130,13 +175,13 @@ export default function App() {
           <TouchableOpacity onPress={() => setScreen("roles")}>
             <Text style={styles.backText}>← رجوع</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>انشر فرصة عمل</Text>
-          <TextInput style={styles.input} placeholder="عنوان الوظيفة (مثال: عامل صيانة)" placeholderTextColor="#888" value={newTitle} onChangeText={setNewTitle}/>
+          <Text style={styles.title}>انشر فرصة عمل (سحابي)</Text>
+          <TextInput style={styles.input} placeholder="عنوان الوظيفة (مثال: فني صيانة)" placeholderTextColor="#888" value={newTitle} onChangeText={setNewTitle}/>
           <TextInput style={styles.input} placeholder="اسم الشركة أو المحل" placeholderTextColor="#888" value={newCompany} onChangeText={setNewCompany}/>
           <TextInput style={styles.input} placeholder="المدينة (مثال: الحلة - المحاويل)" placeholderTextColor="#888" value={newCity} onChangeText={setNewCity}/>
-          <TextInput style={styles.input} placeholder="الراتب (مثال: 600,000 د.ع)" placeholderTextColor="#888" value={newSalary} onChangeText={setNewSalary}/>
+          <TextInput style={styles.input} placeholder="الراتب (مثال: 700,000 د.ع)" placeholderTextColor="#888" value={newSalary} onChangeText={setNewSalary}/>
           <TouchableOpacity style={styles.button} onPress={handlePostJob}>
-            <Text style={styles.buttonText}>نشر الوظيفة</Text>
+            <Text style={styles.buttonText}>نشر في السحابة</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -160,7 +205,6 @@ const styles = StyleSheet.create({
   employerCard: { backgroundColor: "#fff", padding: 20, borderRadius: 12, marginBottom: 15, elevation: 3 },
   cardTitle: { fontSize: 18, fontWeight: "bold", color: "#2f3640", textAlign: "center" },
   input: { backgroundColor: "#fff", borderWidth: 1, borderColor: "#dcdde1", padding: 12, borderRadius: 8, marginBottom: 15, fontSize: 16, color: "#333" },
-  sectionTitle: { fontSize: 18, fontWeight: "bold", color: "#2f3640", marginVertical: 10 },
   jobCard: { backgroundColor: "#fff", padding: 15, borderRadius: 10, marginBottom: 12, borderWidth: 1, borderColor: "#dcdde1" },
   jobTitle: { fontSize: 18, fontWeight: "bold", color: "#2f3640", marginBottom: 5 },
   muted: { fontSize: 14, color: "#718093", marginBottom: 3 },
