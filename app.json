@@ -4,13 +4,34 @@
     "slug": "forsati",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
     "ios": {
       "supportsTablet": true
     },
     "android": {
-      "package": "com.gmalgmal.forsati"
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#0878e8"
+      },
+      "package": "com.gmalgmal.forsati",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
     },
-    "plugins": []
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "نحتاج موقعك لنعرض فرص العمل القريبة منك."
+        }
+      ]
+    ]
   }
 }
