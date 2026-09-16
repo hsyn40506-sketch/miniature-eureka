@@ -1,13 +1,21 @@
 {
   "name": "forsati",
   "version": "1.0.0",
-  "private": true,
-  "main": "node_modules/expo/AppEntry.js",
-  "scripts": {"start":"expo start","android":"expo start --android","ios":"expo start --ios","web":"expo start --web"},
+  "scripts": {
+    "start": "expo start",
+    "android": "expo android",
+    "ios": "expo ios",
+    "web": "expo web"
+  },
   "dependencies": {
-    "expo":"~51.0.39",
-    "expo-status-bar":"~1.12.1",
-    "react":"18.2.0",
-    "react-native":"0.74.5"
-  }
+    "expo": "~51.0.0",
+    "expo-status-bar": "~1.12.1",
+    "react": "18.2.0",
+    "react-native": "0.74.1",
+    "firebase": "^10.8.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.20.0"
+  },
+  "private": true
 }
